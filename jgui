@@ -1,0 +1,532 @@
+#!/usr/bin/env python3
+#  jgui — Interactive TUI Editor for jgmenu
+#  Copyright (C) 2026  measles
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://gnu.org>.
+import os
+import sys
+import subprocess
+import curses
+
+FILE_PATH = os.path.expanduser("~/.config/jgmenu/vse_punkty.csv")
+RC_PATH = os.path.expanduser("~/.config/jgmenu/jgmenurc")
+
+LANGUAGES = {
+    "RU": {
+        "title": " Редактор jgmenu (TUI) ",
+        "side_title": " Команда запуска ",
+        "marker": "[ Служебный маркер ]",
+        "err_parse": "Ошибка разбора",
+        "scan": "Пересканирование системы... Подождите.",
+        "rc_ready": "Конфиг jgmenurc успешно создан! (Любая клавиша)",
+        "file_saved": "Файл успешно сохранен! (Любая клавиша)",
+        "prompt_name": "Имя программы: ",
+        "prompt_cmd": "Команда запуска: ",
+        "prompt_cat_ru": "Имя папки (на русском): ",
+        "prompt_cat_en": "Идентификатор (на англ): ",
+        "prompt_edit_name": "Новое имя: ",
+        "prompt_edit_cmd": "Новая команда: ",
+        "example_app": "Пример приложения",
+        "err_cat": "Ошибка: Сначала выберите категорию!",
+        "help_bar": " [H/h]: Справка | [L]: Язык (RU) | [M]: Настроить jgmenurc | [S]: Сохранить | [Q/q]: Выход ",
+        "help_lines": [
+            "       УПРАВЛЕНИЕ РЕДАКТОРОМ JGMENU:",
+            "-------------------------------------------------------",
+            "[Стрелки]  - Навигация по списку вверх/вниз",
+            "[PgUp/Dn]  - Прокрутка списка на страницу",
+            "[Home/End] - Прыжок в самое начало / конец",
+            "[D/d/Del]  - Удалить выбранную программу или папку",
+            "[E/e]      - Изменить название программы или папки",
+            "[A/a]      - Добавить новую программу в категорию",
+            "[C/c]      - Создать новую категорию (папку)",
+            "[S/s]      - Сохранить все изменения в файл",
+            "[M/m]      - Автоматически настроить файл jgmenurc",
+            "[L/l]      - Переключить язык интерфейса (RU/EN)",
+            "[R]        - Пересканировать систему",
+            "[Q/q]      - Выход из приложения",
+            "",
+            "Нажмите любую клавишу, чтобы закрыть справку..."
+        ]
+    },
+    "EN": {
+        "title": " jgmenu Editor (TUI) ",
+        "side_title": " Launch Command ",
+        "marker": "[ System Marker ]",
+        "err_parse": "Parse Error",
+        "scan": "Rescanning system... Please wait.",
+        "rc_ready": "Config jgmenurc created successfully! (Any key)",
+        "file_saved": "File saved successfully! (Any key)",
+        "prompt_name": "Program Name: ",
+        "prompt_cmd": "Launch Command: ",
+        "prompt_cat_ru": "Folder Name (RU/EN): ",
+        "prompt_cat_en": "Identifier (Lowercase EN): ",
+        "prompt_edit_name": "New Name: ",
+        "prompt_edit_cmd": "New Command: ",
+        "example_app": "Example Application",
+        "err_cat": "Error: Select a category first!",
+        "help_bar": " [H/h]: Help | [L]: Lang (EN) | [M]: Setup jgmenurc | [S]: Save | [Q/q]: Exit ",
+        "help_lines": [
+            "       JGMENU EDITOR CONTROLS:",
+            "-------------------------------------------------",
+            "[Arrows]   - Navigate up/down the list",
+            "[PgUp/Dn]  - Page scroll up/down",
+            "[Home/End] - Jump to start / end of the list",
+            "[D/d/Del]  - Delete selected program or folder",
+            "[E/e]      - Edit program name or launch command",
+            "[A/a]      - Add a new program to selected category",
+            "[C/c]      - Create a new category (folder)",
+            "[S/s]      - Save all changes to disk",
+            "[M/m]      - Automatically configure jgmenurc file",
+            "[L/l]      - Toggle interface language (RU/EN)",
+            "[R]      - Rescan system",
+            "[Q/q]      - Exit application",
+            "",
+            "Press any key to close help..."
+        ]
+    }
+}
+
+def detect_system_language():
+    sys_lang = os.environ.get("LANG", "").lower()
+    if sys_lang.startswith("ru"):
+        return "RU"
+    return "EN"
+
+def generate_base_file():
+    try:
+        os.makedirs(os.path.dirname(FILE_PATH), exist_ok=True)
+        subprocess.run("jgmenu_run apps --no-prepend --no-append > " + FILE_PATH, shell=True, check=True)
+        return True, ""
+    except Exception as e:
+        return False, f"Error: {e}"
+
+def generate_rc_file():
+    try:
+        os.makedirs(os.path.dirname(RC_PATH), exist_ok=True)
+        content = (
+            "# Automatically created by jgui\n"
+            "columns = 1\n"
+            "csv_no_duplicates = 1\n"
+            f"csv_cmd = cat {FILE_PATH}\n"
+        )
+        with open(RC_PATH, "w", encoding="utf-8") as f:
+            f.write(content)
+        return True, ""
+    except Exception as e:
+        return False, f"Error: {e}"
+
+def check_and_generate_file():
+    if not os.path.exists(FILE_PATH):
+        return generate_base_file()
+    return True, ""
+
+def load_menu(lang_err):
+    if not os.path.exists(FILE_PATH):
+        return None, "File not found"
+    try:
+        with open(FILE_PATH, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        return lines
+    except Exception:
+        return []
+
+def parse_lines_to_menu(lines, lang_err):
+    menu_items = []
+    for i, line in enumerate(lines):
+        clean = line.strip()
+        if not clean:
+            continue
+
+        try:
+            if clean.startswith('"""'):
+                parts = clean.split('"""')
+                name = parts[1].strip() if len(parts) > 1 else clean
+                after_quotes = parts[2].strip() if len(parts) > 2 else ""
+                if after_quotes.startswith(','):
+                    after_quotes = after_quotes[1:].strip()
+                cmd_parts = after_quotes.split(',')
+                cmd = cmd_parts[0].strip() if cmd_parts else after_quotes
+                menu_items.append({"type": "app", "name": name, "cmd": cmd, "orig_index": i, "raw": line})
+
+            elif clean.startswith("^tag"):
+                cat_name = clean.replace("^tag(apps-dir-", "").replace(")", "").strip()
+                menu_items.append({"type": "tag", "name": f"== Категория: {cat_name.upper()} ==", "cmd": clean, "orig_index": i, "raw": line})
+
+            elif "," in clean and "^checkout" in clean:
+                parts = clean.split(",")
+                name = parts[0].strip()
+                cmd = parts[1].strip() if len(parts) > 1 else clean
+                menu_items.append({"type": "root_cat", "name": f"[*] Папка: {name}", "cmd": cmd, "orig_index": i, "raw": line})
+            else:
+                menu_items.append({"type": "app", "name": clean, "cmd": clean, "orig_index": i, "raw": line})
+        except Exception:
+            menu_items.append({"type": "app", "name": clean, "cmd": lang_err, "orig_index": i, "raw": line})
+
+    return menu_items
+
+def save_menu(lines):
+    with open(FILE_PATH, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+def prompt_input(stdscr, prompt_text, h, w, default_text=""):
+    curses.echo()
+    curses.curs_set(1)
+
+    stdscr.addstr(h - 2, 1, " " * (w - 2))
+    stdscr.addstr(h - 2, 2, prompt_text[:w-4], curses.A_BOLD)
+
+    start_x = 2 + len(prompt_text)
+    max_len = w - start_x - 4
+
+    if max_len <= 0:
+        curses.noecho()
+        curses.curs_set(0)
+        return default_text
+
+    input_chars = list(default_text)
+    cursor_pos = len(input_chars)
+
+    while True:
+        stdscr.addstr(h - 2, start_x, " " * max_len)
+        curr_str = "".join(input_chars)
+        stdscr.addstr(h - 2, start_x, curr_str[:max_len])
+
+        stdscr.move(h - 2, start_x + min(cursor_pos, max_len))
+        stdscr.refresh()
+
+        try:
+            key = stdscr.get_wch()
+        except Exception:
+            continue
+
+        if key == '\n' or key == '\r':
+            break
+        elif key == chr(27):
+            input_chars = list(default_text)
+            break
+        elif key in [curses.KEY_BACKSPACE, '\x7f', '\x08']:
+            if cursor_pos > 0:
+                input_chars.pop(cursor_pos - 1)
+                cursor_pos -= 1
+        elif key == curses.KEY_DC:
+            if cursor_pos < len(input_chars):
+                input_chars.pop(cursor_pos)
+        elif key == curses.KEY_LEFT:
+            if cursor_pos > 0:
+                cursor_pos -= 1
+        elif key == curses.KEY_RIGHT:
+            if cursor_pos < len(input_chars):
+                cursor_pos += 1
+        elif key == curses.KEY_HOME:
+            cursor_pos = 0
+        elif key == curses.KEY_END:
+            cursor_pos = len(input_chars)
+        elif isinstance(key, str) and key.isprintable():
+            if len(input_chars) < max_len:
+                input_chars.insert(cursor_pos, key)
+                cursor_pos += 1
+
+    curses.noecho()
+    curses.curs_set(0)
+    return "".join(input_chars).strip()
+
+def show_help_popup(stdscr, help_lines):
+    h, w = stdscr.getmaxyx()
+    box_h = len(help_lines) + 2
+    box_w = max(len(line) for line in help_lines) + 4
+
+    start_y = max(0, (h - box_h) // 2)
+    start_x = max(0, (w - box_w) // 2)
+
+    help_win = curses.newwin(box_h, box_w, start_y, start_x)
+    help_win.box()
+    help_win.keypad(True)
+
+    for idx, line in enumerate(help_lines):
+        if idx == 0:
+            help_win.addstr(idx + 1, 2, line, curses.A_BOLD | curses.color_pair(2))
+        elif idx == len(help_lines) - 1:
+            help_win.addstr(idx + 1, 2, line, curses.A_REVERSE)
+        else:
+            help_win.addstr(idx + 1, 2, line)
+
+    help_win.refresh()
+    help_win.getch()
+    del help_win
+
+def main(stdscr):
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_CYAN, -1)
+    curses.init_pair(2, curses.COLOR_YELLOW, -1)
+    curses.init_pair(3, curses.COLOR_MAGENTA, -1)
+    curses.curs_set(0)
+    stdscr.keypad(True)
+
+    success, err_msg = check_and_generate_file()
+    if not success:
+        stdscr.clear()
+        stdscr.addstr(1, 2, err_msg[:curses.COLS-4])
+        stdscr.getch()
+        return
+
+    current_row = 0
+    offset = 0
+    current_lang = detect_system_language()
+
+    lines = load_menu(LANGUAGES[current_lang]["err_parse"])
+
+    while True:
+        L = LANGUAGES[current_lang]
+        menu_items = parse_lines_to_menu(lines, L["err_parse"])
+
+        if not menu_items:
+            generate_base_file()
+            lines = load_menu(L["err_parse"])
+            continue
+
+        h, w = stdscr.getmaxyx()
+
+        if w < 20 or h < 5:
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Terminal too small!")
+            stdscr.refresh()
+            stdscr.getch()
+            break
+
+        left_w = int(w * 0.55)
+        right_w = w - left_w
+        max_visible = h - 3
+
+        if current_row >= len(menu_items):
+            current_row = len(menu_items) - 1
+        if current_row < 0:
+            current_row = 0
+
+        if current_row < offset:
+            offset = current_row
+        elif current_row >= offset + max_visible:
+            offset = current_row - max_visible + 1
+
+        stdscr.clear()
+
+        # Левая рамка
+        for r in range(h - 1):
+            stdscr.addch(r, 0, curses.ACS_VLINE)
+            stdscr.addch(r, left_w - 1, curses.ACS_VLINE)
+        for c in range(left_w):
+            stdscr.addch(0, c, curses.ACS_HLINE)
+            stdscr.addch(h - 2, c, curses.ACS_HLINE)
+        stdscr.addch(0, 0, curses.ACS_ULCORNER)
+        stdscr.addch(0, left_w - 1, curses.ACS_URCORNER)
+        stdscr.addch(h - 2, 0, curses.ACS_LLCORNER)
+        stdscr.addch(h - 2, left_w - 1, curses.ACS_LRCORNER)
+
+        if left_w > len(L["title"]) + 2:
+            stdscr.addstr(0, (left_w - len(L["title"])) // 2, L["title"], curses.A_BOLD)
+
+        # Правая рамка
+        if w >= 80:
+            for r in range(h - 1):
+                stdscr.addch(r, w - 1, curses.ACS_VLINE)
+            for c in range(left_w, w):
+                stdscr.addch(0, c, curses.ACS_HLINE)
+                stdscr.addch(h - 2, c, curses.ACS_HLINE)
+            stdscr.addch(0, w - 1, curses.ACS_URCORNER)
+            stdscr.addch(h - 2, w - 1, curses.ACS_LRCORNER)
+            stdscr.addch(0, left_w - 1, curses.ACS_TTEE)
+            stdscr.addch(h - 2, left_w - 1, curses.ACS_BTEE)
+
+            if right_w > len(L["side_title"]) + 2:
+                stdscr.addstr(0, left_w + (right_w - len(L["side_title"])) // 2, L["side_title"], curses.A_BOLD)
+
+        # Список
+        visible_items = menu_items[offset:offset + max_visible]
+        selected_cmd = ""
+
+        for idx, item in enumerate(visible_items):
+            row = idx + 1
+            actual_idx = idx + offset
+            display_name = item["name"][:left_w - 6]
+
+            try:
+                if item["type"] == "tag":
+                    stdscr.addstr(int(row), 2, display_name, curses.A_BOLD | curses.color_pair(2))
+                elif item["type"] == "root_cat":
+                    if actual_idx == current_row:
+                        stdscr.addstr(int(row), 2, f"> {display_name}"[:left_w-4], curses.A_REVERSE | curses.color_pair(1))
+                        selected_cmd = item["cmd"]
+                    else:
+                        stdscr.addstr(int(row), 2, f"  {display_name}"[:left_w-4], curses.A_BOLD | curses.color_pair(3))
+                else:
+                    if actual_idx == current_row:
+                        stdscr.addstr(int(row), 4, f"> {display_name}"[:left_w-6], curses.A_REVERSE | curses.color_pair(1))
+                        selected_cmd = item["cmd"]
+                    else:
+                        stdscr.addstr(int(row), 4, f"  {display_name}"[:left_w-6])
+            except curses.error:
+                pass
+
+        if w >= 80:
+            if selected_cmd:
+                max_cmd_len = right_w - 4
+                if max_cmd_len > 0:
+                    chunks = [selected_cmd[i:i+max_cmd_len] for i in range(0, len(selected_cmd), max_cmd_len)]
+                    for r_idx, chunk in enumerate(chunks[:h-4]):
+                        try:
+                            stdscr.addstr(r_idx + 2, left_w + 2, chunk[:max_cmd_len], curses.color_pair(1) | curses.A_BOLD)
+                        except curses.error:
+                            pass
+            else:
+                try:
+                    stdscr.addstr(2, left_w + 2, L["marker"][:right_w-4], curses.A_DIM)
+                except curses.error:
+                    pass
+
+        try:
+            if w > len(L["help_bar"]):
+                stdscr.addstr(h - 1, (w - len(L["help_bar"])) // 2, L["help_bar"], curses.A_REVERSE)
+            else:
+                stdscr.addstr(h - 1, 0, L["help_bar"][:w], curses.A_REVERSE)
+        except curses.error:
+            pass
+
+        stdscr.refresh()
+
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP and current_row > 0:
+            current_row -= 1
+        elif key == curses.KEY_DOWN and current_row < len(menu_items) - 1:
+            current_row += 1
+        elif key == curses.KEY_PPAGE:
+            current_row = max(0, current_row - max_visible)
+        elif key == curses.KEY_NPAGE:
+            current_row = min(len(menu_items) - 1, current_row + max_visible)
+        elif key == curses.KEY_HOME:
+            current_row = 0
+        elif key == curses.KEY_END:
+            current_row = len(menu_items) - 1
+
+        elif key in [ord('q'), ord('Q')]:
+            break
+        elif key in [ord('h'), ord('H')]:
+            show_help_popup(stdscr, L["help_lines"])
+        elif key in [ord('l'), ord('L')]:
+            current_lang = "EN" if current_lang == "RU" else "RU"
+        elif key == ord('R'):
+            stdscr.addstr(h - 2, 2, L["scan"][:w-4], curses.A_BOLD)
+            stdscr.refresh()
+            generate_base_file()
+            lines = load_menu(L["err_parse"])
+            current_row = 0
+            offset = 0
+        elif key in [ord('m'), ord('M')]:
+            success, err_msg = generate_rc_file()
+            stdscr.addstr(h - 2, 2, " " * (w - 3))
+            if success:
+                stdscr.addstr(h - 2, 2, L["rc_ready"][:w-4], curses.A_BOLD)
+            else:
+                stdscr.addstr(h - 2, 2, f"Error: {err_msg}"[:w-4], curses.A_BOLD)
+            stdscr.getch()
+        elif key in [ord('s'), ord('S')]:
+            save_menu(lines)
+            stdscr.addstr(h - 2, 2, " " * (w - 3))
+            stdscr.addstr(h - 2, 2, L["file_saved"][:w-4], curses.A_BOLD)
+            stdscr.getch()
+        elif key in [ord('d'), ord('D'), curses.KEY_DC]:
+            selected = menu_items[current_row]
+            if selected["type"] in ["app", "root_cat"]:
+                del lines[selected["orig_index"]]
+        elif key in [ord('e'), ord('E')]:
+            selected = menu_items[current_row]
+            if selected["type"] == "app":
+                new_name = prompt_input(stdscr, L["prompt_edit_name"], h, w, selected["name"])
+                if new_name:
+                    new_cmd = prompt_input(stdscr, L["prompt_edit_cmd"], h, w, selected["cmd"])
+                    if new_cmd:
+                        lines[selected["orig_index"]] = f'"""{new_name}""",{new_cmd},exec,,#UserAdded\n'
+            elif selected["type"] == "root_cat":
+                clean_name = selected["name"].replace("[*] Папка:", "").strip()
+                new_name = prompt_input(stdscr, L["prompt_edit_name"], h, w, clean_name)
+                if new_name:
+                    new_name = new_name.replace("[*] Папка:", "").strip()
+                    orig_clean = selected["raw"].strip()
+                    orig_parts = orig_clean.split(",")
+                    cmd_part = orig_parts[1].strip() if len(orig_parts) > 1 else ""
+                    icon_part = orig_parts[2].strip() if len(orig_parts) > 2 else "applications-other"
+                    lines[selected["orig_index"]] = f"{new_name},{cmd_part},{icon_part}\n"
+        elif key in [ord('a'), ord('A')]:
+            target_cat = None
+            for i in range(current_row, -1, -1):
+                if menu_items[i]["type"] == "tag":
+                    target_cat = menu_items[i]
+                    break
+            if target_cat:
+                name = prompt_input(stdscr, L["prompt_name"], h, w)
+                if name:
+                    cmd = prompt_input(stdscr, L["prompt_cmd"], h, w)
+                    if cmd:
+                        new_line = f'"""{name}""",{cmd},exec,,#UserAdded\n'
+                        lines.insert(target_cat["orig_index"] + 1, new_line)
+            else:
+                stdscr.addstr(h - 2, 2, L["err_cat"][:w-4], curses.A_BOLD)
+                stdscr.getch()
+        elif key in [ord('c'), ord('C')]:
+            cat_name_ru = prompt_input(stdscr, L["prompt_cat_ru"], h, w)
+            if cat_name_ru:
+                cat_name_en = prompt_input(stdscr, f"{L['prompt_cat_en']} (e.g. games): ", h, w)
+                if cat_name_en:
+                    root_index = 0
+                    for idx, line in enumerate(lines):
+                        if "^checkout" in line:
+                            root_index = idx + 1
+                    root_line = f"{cat_name_ru},^checkout(apps-dir-{cat_name_en}),applications-other\n"
+                    lines.insert(root_index, root_line)
+                    lines.append(f"\n^tag(apps-dir-{cat_name_en})\n")
+                    lines.append(f'"""{L["example_app"]}""",notify-send "Works!",exec,,#UserAdded\n')
+
+if __name__ == "__main__":
+    # Проверяем аргументы командной строки
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        
+        # Обработка версии
+        if arg in ["-v", "--v"]:
+            print("jgui v0.3.0")
+            sys.exit(0)
+            
+        # Обработка справки в терминале
+        elif arg in ["-h", "--h", "-help", "--help"]:
+            help_msg = (
+                "jgui - Interactive TUI Editor for jgmenu\n\n"
+                "Description:\n"
+                "  This utility helps you easily manage your application menu.\n"
+                "  It automatically creates and modifies the following files inside your home directory:\n"
+                "    ~/.config/jgmenu/jgmenurc      - Main configuration file with automated bindings\n"
+                "    ~/.config/jgmenu/vse_punkty.csv - Flat database containing your customized menu tree\n\n"
+                "Usage:\n"
+                "  jgui         Launch the interactive TUI interface\n"
+                "  jgui -v      Show application version\n"
+                "  jgui -h      Show this brief English help message"
+            )
+            print(help_msg)
+            sys.exit(0)
+
+    # Если аргументов нет, запускаем стандартный TUI-интерфейс
+    try:
+        curses.wrapper(main)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+
