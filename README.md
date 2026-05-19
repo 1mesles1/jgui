@@ -1,4 +1,4 @@
-# jgui (v0.3.0) — Interactive TUI Editor for jgmenu
+# jgui (v0.3.1) — Interactive TUI Editor for jgmenu
 
 
 ## Screenshots
@@ -21,6 +21,7 @@ It allows you to safely clean up bloated application menus (including conflictin
 * 🔄 **Smart Config Generation:** Automatically creates and hooks up `jgmenurc` configuration.
 * 🌐 **On-the-fly Localization:** Automatically detects system language (RU/EN) and allows switching layout on the fly.
 * 🖥️ **Side Panel view:** Displays the underlying bash launch command for the currently highlighted application.
+* 🔍 **Instant Search:** Press `/` to filter applications on the fly. `q` — Reset active search filter (or exit the application if no search is active).
 
 ### Installation & Usage
 
@@ -59,6 +60,7 @@ jgui
 * 🔄 **Авто-настройка конфигурации:** Сам генерирует и правильно связывает параметры внутри `jgmenurc`.
 * 🌐 **Умная локализация:** Автоматически подхватывает системный язык (RU/EN) и позволяет переключать его на лету.
 * 🖥️ **Боковая панель:** В реальном времени выводит точную bash-команду запуска для выбранного пункта.
+* 🔍 **Быстрый поиск:** Нажмите `/` для мгновенной фильтрации программ на лету. `q` — Сбросить результаты поиска (или выйти из программы, если поиск не активен).
 
 ### Установка и Запуск
 

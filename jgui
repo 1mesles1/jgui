@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-#  jgui — Interactive TUI Editor for jgmenu
-#  Copyright (C) 2026  measles
-#
-#  This program is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program.  If not, see <https://gnu.org>.
 import os
 import sys
 import subprocess
@@ -25,6 +10,7 @@ RC_PATH = os.path.expanduser("~/.config/jgmenu/jgmenurc")
 LANGUAGES = {
     "RU": {
         "title": " Редактор jgmenu (TUI) ",
+        "prompt_search": "Поиск: ",
         "side_title": " Команда запуска ",
         "marker": "[ Служебный маркер ]",
         "err_parse": "Ошибка разбора",
@@ -54,6 +40,7 @@ LANGUAGES = {
             "[M/m]      - Автоматически настроить файл jgmenurc",
             "[L/l]      - Переключить язык интерфейса (RU/EN)",
             "[R]        - Пересканировать систему",
+            "[/]        - Поиск",
             "[Q/q]      - Выход из приложения",
             "",
             "Нажмите любую клавишу, чтобы закрыть справку..."
@@ -61,6 +48,7 @@ LANGUAGES = {
     },
     "EN": {
         "title": " jgmenu Editor (TUI) ",
+        "prompt_search": "Search: ",
         "side_title": " Launch Command ",
         "marker": "[ System Marker ]",
         "err_parse": "Parse Error",
@@ -89,7 +77,8 @@ LANGUAGES = {
             "[S/s]      - Save all changes to disk",
             "[M/m]      - Automatically configure jgmenurc file",
             "[L/l]      - Toggle interface language (RU/EN)",
-            "[R]      - Rescan system",
+            "[R]        - Rescan system",
+            "[/]        - Search",
             "[Q/q]      - Exit application",
             "",
             "Press any key to close help..."
@@ -268,12 +257,12 @@ def show_help_popup(stdscr, help_lines):
 def main(stdscr):
     curses.start_color()
     curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_CYAN, -1)
-    curses.init_pair(2, curses.COLOR_YELLOW, -1)
-    curses.init_pair(3, curses.COLOR_MAGENTA, -1)
+    curses.init_pair(1, curses.COLOR_CYAN, -1) 
+    curses.init_pair(2, curses.COLOR_YELLOW, -1) 
+    curses.init_pair(3, curses.COLOR_MAGENTA, -1) 
     curses.curs_set(0)
     stdscr.keypad(True)
-
+    
     success, err_msg = check_and_generate_file()
     if not success:
         stdscr.clear()
@@ -284,20 +273,15 @@ def main(stdscr):
     current_row = 0
     offset = 0
     current_lang = detect_system_language()
-
+    
+    # Считываем файл и собираем дерево меню ОДИН раз при старте
     lines = load_menu(LANGUAGES[current_lang]["err_parse"])
-
+    menu_items = parse_lines_to_menu(lines, LANGUAGES[current_lang]["err_parse"])
+    
     while True:
         L = LANGUAGES[current_lang]
-        menu_items = parse_lines_to_menu(lines, L["err_parse"])
-
-        if not menu_items:
-            generate_base_file()
-            lines = load_menu(L["err_parse"])
-            continue
-
         h, w = stdscr.getmaxyx()
-
+        
         if w < 20 or h < 5:
             stdscr.clear()
             stdscr.addstr(0, 0, "Terminal too small!")
@@ -307,20 +291,20 @@ def main(stdscr):
 
         left_w = int(w * 0.55)
         right_w = w - left_w
-        max_visible = h - 3
-
+        max_visible = h - 3 
+        
         if current_row >= len(menu_items):
             current_row = len(menu_items) - 1
         if current_row < 0:
             current_row = 0
-
+            
         if current_row < offset:
             offset = current_row
         elif current_row >= offset + max_visible:
             offset = current_row - max_visible + 1
-
+            
         stdscr.clear()
-
+        
         # Левая рамка
         for r in range(h - 1):
             stdscr.addch(r, 0, curses.ACS_VLINE)
@@ -332,7 +316,7 @@ def main(stdscr):
         stdscr.addch(0, left_w - 1, curses.ACS_URCORNER)
         stdscr.addch(h - 2, 0, curses.ACS_LLCORNER)
         stdscr.addch(h - 2, left_w - 1, curses.ACS_LRCORNER)
-
+        
         if left_w > len(L["title"]) + 2:
             stdscr.addstr(0, (left_w - len(L["title"])) // 2, L["title"], curses.A_BOLD)
 
@@ -347,19 +331,19 @@ def main(stdscr):
             stdscr.addch(h - 2, w - 1, curses.ACS_LRCORNER)
             stdscr.addch(0, left_w - 1, curses.ACS_TTEE)
             stdscr.addch(h - 2, left_w - 1, curses.ACS_BTEE)
-
+            
             if right_w > len(L["side_title"]) + 2:
                 stdscr.addstr(0, left_w + (right_w - len(L["side_title"])) // 2, L["side_title"], curses.A_BOLD)
 
-        # Список
+        # Вывод списка элементов
         visible_items = menu_items[offset:offset + max_visible]
         selected_cmd = ""
-
+        
         for idx, item in enumerate(visible_items):
             row = idx + 1
             actual_idx = idx + offset
             display_name = item["name"][:left_w - 6]
-
+            
             try:
                 if item["type"] == "tag":
                     stdscr.addstr(int(row), 2, display_name, curses.A_BOLD | curses.color_pair(2))
@@ -377,7 +361,7 @@ def main(stdscr):
                         stdscr.addstr(int(row), 4, f"  {display_name}"[:left_w-6])
             except curses.error:
                 pass
-
+                    
         if w >= 80:
             if selected_cmd:
                 max_cmd_len = right_w - 4
@@ -393,7 +377,7 @@ def main(stdscr):
                     stdscr.addstr(2, left_w + 2, L["marker"][:right_w-4], curses.A_DIM)
                 except curses.error:
                     pass
-
+            
         try:
             if w > len(L["help_bar"]):
                 stdscr.addstr(h - 1, (w - len(L["help_bar"])) // 2, L["help_bar"], curses.A_REVERSE)
@@ -401,11 +385,11 @@ def main(stdscr):
                 stdscr.addstr(h - 1, 0, L["help_bar"][:w], curses.A_REVERSE)
         except curses.error:
             pass
-
+            
         stdscr.refresh()
-
+        
         key = stdscr.getch()
-
+        
         if key == curses.KEY_UP and current_row > 0:
             current_row -= 1
         elif key == curses.KEY_DOWN and current_row < len(menu_items) - 1:
@@ -418,9 +402,18 @@ def main(stdscr):
             current_row = 0
         elif key == curses.KEY_END:
             current_row = len(menu_items) - 1
-
+            
         elif key in [ord('q'), ord('Q')]:
-            break
+            # Проверяем, отличается ли текущий список от полного дерева (идёт ли поиск)
+            full_tree = parse_lines_to_menu(lines, L["err_parse"])
+            if len(menu_items) != len(full_tree):
+                # Если размеры разные, значит включен поиск. Сбрасываем его вместо выхода!
+                menu_items = full_tree
+                current_row = 0
+                offset = 0
+            else:
+                # Если поиска нет — полностью выходим из программы
+                break
         elif key in [ord('h'), ord('H')]:
             show_help_popup(stdscr, L["help_lines"])
         elif key in [ord('l'), ord('L')]:
@@ -430,6 +423,7 @@ def main(stdscr):
             stdscr.refresh()
             generate_base_file()
             lines = load_menu(L["err_parse"])
+            menu_items = parse_lines_to_menu(lines, L["err_parse"])
             current_row = 0
             offset = 0
         elif key in [ord('m'), ord('M')]:
@@ -446,27 +440,47 @@ def main(stdscr):
             stdscr.addstr(h - 2, 2, L["file_saved"][:w-4], curses.A_BOLD)
             stdscr.getch()
         elif key in [ord('d'), ord('D'), curses.KEY_DC]:
-            selected = menu_items[current_row]
-            if selected["type"] in ["app", "root_cat"]:
-                del lines[selected["orig_index"]]
+            if menu_items:
+                selected = menu_items[current_row]
+                if selected["type"] in ["app", "root_cat"]:
+                    del lines[selected["orig_index"]]
+                    menu_items = parse_lines_to_menu(lines, L["err_parse"])
+        elif key == ord('/'):
+            search_query = prompt_input(stdscr, L["prompt_search"], h, w, "")
+            if search_query:
+                filtered_items = []
+                for item in parse_lines_to_menu(lines, L["err_parse"]):
+                    if item["type"] == "app" and search_query.lower() in item["name"].lower():
+                        filtered_items.append(item)
+                if filtered_items:
+                    menu_items = filtered_items
+                    current_row = 0
+                    offset = 0
+        elif key == 27:  # Клавиша Esc — сброс поиска и фильтров
+            menu_items = parse_lines_to_menu(lines, L["err_parse"])
+            current_row = 0
+            offset = 0
         elif key in [ord('e'), ord('E')]:
-            selected = menu_items[current_row]
-            if selected["type"] == "app":
-                new_name = prompt_input(stdscr, L["prompt_edit_name"], h, w, selected["name"])
-                if new_name:
-                    new_cmd = prompt_input(stdscr, L["prompt_edit_cmd"], h, w, selected["cmd"])
-                    if new_cmd:
-                        lines[selected["orig_index"]] = f'"""{new_name}""",{new_cmd},exec,,#UserAdded\n'
-            elif selected["type"] == "root_cat":
-                clean_name = selected["name"].replace("[*] Папка:", "").strip()
-                new_name = prompt_input(stdscr, L["prompt_edit_name"], h, w, clean_name)
-                if new_name:
-                    new_name = new_name.replace("[*] Папка:", "").strip()
-                    orig_clean = selected["raw"].strip()
-                    orig_parts = orig_clean.split(",")
-                    cmd_part = orig_parts[1].strip() if len(orig_parts) > 1 else ""
-                    icon_part = orig_parts[2].strip() if len(orig_parts) > 2 else "applications-other"
-                    lines[selected["orig_index"]] = f"{new_name},{cmd_part},{icon_part}\n"
+            if menu_items:
+                selected = menu_items[current_row]
+                if selected["type"] == "app":
+                    new_name = prompt_input(stdscr, L["prompt_edit_name"], h, w, selected["name"])
+                    if new_name:
+                        new_cmd = prompt_input(stdscr, L["prompt_edit_cmd"], h, w, selected["cmd"])
+                        if new_cmd:
+                            lines[selected["orig_index"]] = f'"""{new_name}""",{new_cmd},exec,,#UserAdded\n'
+                            menu_items = parse_lines_to_menu(lines, L["err_parse"])
+                elif selected["type"] == "root_cat":
+                    clean_name = selected["name"].replace("[*] Папка:", "").strip()
+                    new_name = prompt_input(stdscr, L["prompt_edit_name"], h, w, clean_name)
+                    if new_name:
+                        new_name = new_name.replace("[*] Папка:", "").strip()
+                        orig_clean = selected["raw"].strip()
+                        orig_parts = orig_clean.split(",")
+                        cmd_part = orig_parts[1].strip() if len(orig_parts) > 1 else ""
+                        icon_part = orig_parts[2].strip() if len(orig_parts) > 2 else "applications-other"
+                        lines[selected["orig_index"]] = f"{new_name},{cmd_part},{icon_part}\n"
+                        menu_items = parse_lines_to_menu(lines, L["err_parse"])
         elif key in [ord('a'), ord('A')]:
             target_cat = None
             for i in range(current_row, -1, -1):
@@ -480,6 +494,7 @@ def main(stdscr):
                     if cmd:
                         new_line = f'"""{name}""",{cmd},exec,,#UserAdded\n'
                         lines.insert(target_cat["orig_index"] + 1, new_line)
+                        menu_items = parse_lines_to_menu(lines, L["err_parse"])
             else:
                 stdscr.addstr(h - 2, 2, L["err_cat"][:w-4], curses.A_BOLD)
                 stdscr.getch()
@@ -496,6 +511,7 @@ def main(stdscr):
                     lines.insert(root_index, root_line)
                     lines.append(f"\n^tag(apps-dir-{cat_name_en})\n")
                     lines.append(f'"""{L["example_app"]}""",notify-send "Works!",exec,,#UserAdded\n')
+                    menu_items = parse_lines_to_menu(lines, L["err_parse"])
 
 if __name__ == "__main__":
     # Проверяем аргументы командной строки
@@ -504,7 +520,7 @@ if __name__ == "__main__":
         
         # Обработка версии
         if arg in ["-v", "--v"]:
-            print("jgui v0.3.0")
+            print("jgui v0.3.1")
             sys.exit(0)
             
         # Обработка справки в терминале
