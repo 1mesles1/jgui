@@ -27,7 +27,7 @@ It allows you to safely clean up bloated application menus (including conflictin
 
 1. Clone the repository and make the script executable:
 ```bash
-git clone https://github.com
+git clone https://github.com/1mesles1/jgui
 cd jgui
 chmod +x jgui
 ```
@@ -66,7 +66,7 @@ jgui
 
 1. Клонируйте репозиторий и сделайте скрипт исполняемым:
 ```bash
-git clone https://github.com
+git clone https://github.com/1mesles1/jgui
 cd jgui
 chmod +x jgui
 ```
