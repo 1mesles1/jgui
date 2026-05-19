@@ -1,4 +1,4 @@
-markdown# jgui (v0.3.0) — Interactive TUI Editor for jgmenu
+# jgui (v0.3.0) — Interactive TUI Editor for jgmenu
 
 
 ## Screenshots
